@@ -161,6 +161,7 @@ dump.rdb
 # SysID / robotics experiment data
 sysid_data/
 isaac_data/
+episodes-twist2/
 offline_open_loop_eval_plots/
 
 # Generic model/data folders
