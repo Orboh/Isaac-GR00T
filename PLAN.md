@@ -13,14 +13,14 @@
 |-------|------|------|------|
 | Phase 1 | LeRobot v2 変換 (45 DOF + 動画対応) | ⏳ 待機中 | TWIST2 側の新フォーマットデータ待ち |
 | Phase 2 | HuggingFace Hub アップロード | ⏳ 待機中 | Phase 1 完了後 |
-| Phase 3 | AWS Fine-tuning | ⏳ 待機中 | GPU クォータ承認待ち（申請済み） |
-| Phase 4 | Isaac Lab シミュレーション評価 | ⏳ 待機中 | GPU クォータ承認待ち |
+| Phase 3 | AWS Fine-tuning | 🔄 進行中 | G1 公開データで動作確認中（scripts/aws/ 準備済み ✅） |
+| Phase 4 | Isaac Lab シミュレーション評価 | ⏳ 待機中 | Phase 3 完了後 |
 | Phase 5 | 実機 G1 デプロイ | ⏳ 未着手 | |
 
 **凡例**: ✅ 完了 / 🔄 進行中 / ⏳ 待機中 / ❌ ブロック中 / 未着手
 
 ### ブロッカー
-- **AWS GPU クォータ**: `G and VT instances` を申請済み。承認待ち（2026-02-28 申請）
+- ~~**AWS GPU クォータ**: `G and VT instances` を申請済み。承認待ち（2026-02-28 申請）~~ → **承認済み ✅ (2026-03-01)**
 - **TWIST2 新フォーマット**: 45 DOF + カメラ対応の JSON が出力できるようになったら Phase 1 着手
 
 ---

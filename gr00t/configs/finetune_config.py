@@ -83,6 +83,13 @@ class FinetuneConfig:
     gradient_checkpointing: bool = False
     """If True, enable gradient checkpointing to reduce GPU memory usage at the cost of extra compute."""
 
+    optim: str | None = None
+    """
+    Optimizer to use. If None, uses the default ('adamw_torch').
+    Use 'paged_adamw_8bit' (requires bitsandbytes) for ~4x lower optimizer memory on single-GPU.
+    Use 'adafactor' for memory-efficient training without extra installs.
+    """
+
     output_dir: str = "./outputs"
     """Directory where model checkpoints, logs, and outputs are saved."""
 
