@@ -13,7 +13,7 @@
 |-------|------|------|------|
 | Phase 1 | LeRobot v2 変換 (45 DOF + 動画対応) | ⏳ 待機中 | TWIST2 側の新フォーマットデータ待ち |
 | Phase 2 | HuggingFace Hub アップロード | ⏳ 待機中 | Phase 1 完了後 |
-| Phase 3 | AWS Fine-tuning | 🔄 進行中 | G1 公開データで動作確認中（scripts/aws/ 準備済み ✅） |
+| Phase 3 | AWS Fine-tuning | 🔄 進行中 | G1 公開データで動作確認済み ✅（g5.xlarge OOM 解決済み・~4秒/step で安定稼働を確認） |
 | Phase 4 | Isaac Lab シミュレーション評価 | ⏳ 待機中 | Phase 3 完了後 |
 | Phase 5 | 実機 G1 デプロイ | ⏳ 未着手 | |
 
@@ -263,21 +263,29 @@ huggingface-cli upload <YOUR_HF_USERNAME>/twist2-g1-amazinghand \
 
 ### 3.1 推奨インスタンス
 
-| インスタンス | GPU | VRAM | Spot 概算 | 推奨 |
-|-------------|-----|------|-----------|------|
-| **g5.12xlarge** | 4x A10G 24GB | 96GB | ~$1.7/時 | コスト効率重視 |
-| **p4d.24xlarge** | 8x A100 80GB | 640GB | ~$10/時 | 速度重視 |
+| インスタンス | GPU | VRAM | RAM | オンデマンド概算 | 用途 |
+|-------------|-----|------|-----|-----------------|------|
+| **g5.xlarge** | 1x A10G 24GB | 24GB | 16GB | ~$1.0/時 | 動作確認・単発実験 ✅ 使用中 |
+| **g5.12xlarge** | 4x A10G 24GB | 96GB | 192GB | ~$5.7/時 | コスト効率重視 |
+| **p4d.24xlarge** | 8x A100 80GB | 640GB | 1152GB | ~$32/時 | 速度重視 |
 
 Spot Instance を利用してコストを削減。チェックポイントを S3 に頻繁に保存して中断に備えること。
+
+> **g5.xlarge での注意**: RAM 16GB のため `--dataloader_num_workers` は 1 に制限。10000 steps ≈ 11 時間。
 
 ### 3.2 EC2 セットアップ
 
 ```bash
-# Deep Learning AMI (Ubuntu 22.04) 起動後
-git clone https://github.com/NVlabs/Isaac-GR00T.git
-cd Isaac-GR00T
+# Deep Learning AMI GPU PyTorch 2.9 Ubuntu 24.04 起動後
+# ※ git clone 不可のため tarball を使う
+curl -sL https://github.com/Orboh/Isaac-GR00T/archive/refs/heads/main.tar.gz | tar xz
+mv Isaac-GR00T-main Isaac-GR00T && cd Isaac-GR00T
 curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.bashrc
+export CUDA_HOME=/opt/pytorch/cuda
 uv sync --python 3.10 && uv pip install -e .
+
+# bitsandbytes (paged_adamw_8bit に必要)
+uv pip install bitsandbytes
 
 # HuggingFace 認証とデータセット取得
 huggingface-cli login
@@ -288,8 +296,11 @@ huggingface-cli download <YOUR_HF_USERNAME>/twist2-g1-amazinghand \
 
 ### 3.3 Fine-tuning 実行
 
-**シングル GPU (g5.12xlarge 等):**
+**シングル GPU (g5.xlarge / g5.12xlarge 等):**
 ```bash
+# g5.xlarge (1x A10G 24GB, 16GB RAM) で動作確認済みの設定
+# DeepSpeed は num_gpus=1 では無効 → paged_adamw_8bit + gradient_checkpointing で VRAM を節約
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
 CUDA_VISIBLE_DEVICES=0 uv run python gr00t/experiment/launch_finetune.py \
   --base-model-path nvidia/GR00T-N1.6-3B \
   --dataset-path /datasets/twist2_lerobot_v2 \
@@ -303,8 +314,14 @@ CUDA_VISIBLE_DEVICES=0 uv run python gr00t/experiment/launch_finetune.py \
   --learning-rate 1e-4 \
   --warmup-ratio 0.05 \
   --weight-decay 1e-5 \
-  --global-batch-size 64 \
+  --global-batch-size 8 \
+  --gradient-accumulation-steps 8 \
+  --gradient-checkpointing \
+  --optim paged_adamw_8bit \
+  --dataloader-num-workers 1 \
   --use-wandb
+# ※ 実効バッチサイズ = global_batch_size(8) × gradient_accumulation_steps(8) = 64
+# ※ g5.12xlarge (192GB RAM) なら --dataloader-num-workers 4 まで増やせる
 ```
 
 **マルチ GPU (p4d.24xlarge: 8x A100):**
@@ -444,7 +461,8 @@ right_hand_action = action["right_hand"][0]  # (action_horizon, 8)
 |---------|------|------|
 | [scripts/convert_twist2_to_lerobot.py](scripts/convert_twist2_to_lerobot.py) | LeRobot v2 変換 | 29 DOF, 動画なし → **要更新** |
 | [configs/data/twist2_modality_config.py](configs/data/twist2_modality_config.py) | Modality 設定 | 29 DOF, 動画なし → **要更新** |
-| [gr00t/experiment/launch_finetune.py](gr00t/experiment/launch_finetune.py) | Fine-tuning エントリ | 変更不要 |
+| [gr00t/experiment/launch_finetune.py](gr00t/experiment/launch_finetune.py) | Fine-tuning エントリ | `gradient_checkpointing` / `optim` フラグ追加済み ✅ |
+| [scripts/aws/finetune_g1_aws.sh](scripts/aws/finetune_g1_aws.sh) | G1 fine-tuning 起動スクリプト (g5.xlarge) | OOM 対策済み ✅ |
 | [gr00t/eval/run_gr00t_server.py](gr00t/eval/run_gr00t_server.py) | ZMQ ポリシーサーバー | 変更不要 |
 | [gr00t/eval/open_loop_eval.py](gr00t/eval/open_loop_eval.py) | Open-loop 評価 | 変更不要 |
 | [gr00t/eval/rollout_policy.py](gr00t/eval/rollout_policy.py) | Closed-loop 評価 | 変更不要 |

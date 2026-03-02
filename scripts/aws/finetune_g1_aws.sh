@@ -31,7 +31,7 @@ CUDA_VISIBLE_DEVICES=0 uv run python gr00t/experiment/launch_finetune.py \
     --gradient_accumulation_steps 8 \
     --gradient_checkpointing \
     --optim paged_adamw_8bit \
-    --dataloader_num_workers 2 \
+    --dataloader_num_workers 1 \
     --color_jitter_params brightness 0.3 contrast 0.4 saturation 0.5 hue 0.08
 
 echo ""
