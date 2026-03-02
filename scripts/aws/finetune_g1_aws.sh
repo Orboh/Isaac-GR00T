@@ -24,6 +24,7 @@ CUDA_VISIBLE_DEVICES=0 uv run python gr00t/experiment/launch_finetune.py \
     --weight_decay 1e-5 \
     --learning_rate 1e-4 \
     --global_batch_size 64 \
+    --gradient_checkpointing \
     --dataloader_num_workers 4 \
     --color_jitter_params brightness 0.3 contrast 0.4 saturation 0.5 hue 0.08
 

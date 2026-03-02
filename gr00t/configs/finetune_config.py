@@ -80,6 +80,9 @@ class FinetuneConfig:
     gradient_accumulation_steps: int = 1
     """Number of forward passes to accumulate before performing a backward/update step."""
 
+    gradient_checkpointing: bool = False
+    """If True, enable gradient checkpointing to reduce GPU memory usage at the cost of extra compute."""
+
     output_dir: str = "./outputs"
     """Directory where model checkpoints, logs, and outputs are saved."""
 
